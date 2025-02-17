@@ -1,4 +1,4 @@
-def convert_m2_to_text(m2_string):
+def convert_m2_to_text(m2_string: str) -> dict:
     """
     Convert M2 formatted text to corrected sentence.
     
@@ -8,8 +8,14 @@ def convert_m2_to_text(m2_string):
     Returns:
         dict: Dictionary with original and corrected sentences
     """
+    if not m2_string:
+        raise ValueError("Input string is empty")
+    
     # Split the input into lines
     lines = m2_string.strip().split('\n')
+    
+    if len(lines) < 2:
+        raise ValueError("Input string is not a valid M2 formatted string: {}".format(m2_string))
     
     # Get the original sentence (first line starting with S)
     original = lines[0][2:].strip()  # Remove 'S ' from the start
