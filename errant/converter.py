@@ -63,7 +63,7 @@ def convert_m2_to_text(m2_string: str) -> dict:
         'corrected': corrected
     }
 
-def convert_m2_file(file_path):
+def convert_m2_file(file_path: str) -> list[dict]:
     """
     Convert an M2 file to a list of dictionaries with original and corrected sentences.
     
