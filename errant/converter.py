@@ -45,7 +45,9 @@ def convert_m2_to_text(m2_string: str) -> dict:
             continue
     
     # Sort edits in reverse order (to handle overlapping edits)
-    edits.sort(key=lambda x: x[0], reverse=True)
+    # simply reverse the list instead of sorting to avoid single-point insertions
+    # e.g., a sequence of insertions at position (1 1)
+    edits = reversed(edits)
     
     # Apply the edits
     for start, end, replacement in edits:
