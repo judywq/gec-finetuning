@@ -34,3 +34,8 @@ inference_base_model_id = "gpt-4o-2024-08-06"
 inference_base_model_temperature = 0
 
 DEFAULT_LOG_LEVEL = "INFO"
+
+# Add these lines to your existing settings.py
+excel_output_dir = "data/output/excel"
+baseline_results_excel = "data/output/excel/baseline_results.xlsx"
+finetuned_results_excel = "data/output/excel/finetuned_results.xlsx"
