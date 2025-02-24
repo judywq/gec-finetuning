@@ -26,8 +26,12 @@ class ModelRunner:
             input_fn = self.config.dataset_test_filename
             output_fn = self.config.dataset_test_result_finetuned_filename
             
-            if skip_if_exists and os.path.exists(output_fn):
-                logger.info(f"Skip running model {fine_tuned_model}.")
+            if os.path.exists(output_fn):
+                if skip_if_exists:
+                    logger.info(f"Skip running model {fine_tuned_model}.")
+                    return
+                else:
+                    self.ask_if_delete_output_file(output_fn)
             else:
                 self._run_openai_model(
                     input_jsonl_fn=input_fn,
@@ -38,7 +42,6 @@ class ModelRunner:
         else:
             logger.info(f"Fine-tuning model is not ready yet: {job}")
 
-
     def _run_baseline_models(self, skip_if_exists=True):
         model_id = self.config.inference_base_model_id
         input_fn = self.config.dataset_test_filename
@@ -46,9 +49,12 @@ class ModelRunner:
             input_fn = self.create_short_file(input_fn)
         output_fn = self.config.dataset_test_result_baseline_filename
         
-        if skip_if_exists and os.path.exists(output_fn):
-            logger.info(f"Skip running model {model_id}.")
-            return
+        if os.path.exists(output_fn):
+            if skip_if_exists:
+                logger.info(f"Skip running model {model_id}.")
+                return
+            else:
+                self.ask_if_delete_output_file(output_fn)
         
         self._run_openai_model(
             input_jsonl_fn=input_fn,
@@ -65,7 +71,18 @@ class ModelRunner:
                 if i + 1 >= self.run_top_k:
                     break
         return short_fn
-        
+    
+    @staticmethod
+    def ask_if_delete_output_file(output_fn):
+        if os.path.exists(output_fn):
+            logger.info(f"Output file {output_fn} already exists. Delete it? (Y/n)")
+            answer = input().lower()
+            if answer in ['y', 'yes', '']:
+                os.remove(output_fn)
+                return True
+            else:
+                return False
+        return True
 
     @classmethod
     def _run_openai_model(

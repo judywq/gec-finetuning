@@ -5,8 +5,8 @@ import os
 
 skip_if_exist = True
 skip_if_exist = False
-# run_top_k = -1
-run_top_k = 5
+run_top_k = -1
+# run_top_k = 5
 
 def main():
     os.makedirs("data/output/result", exist_ok=True)
