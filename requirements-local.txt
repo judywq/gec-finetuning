@@ -1,2 +1,4 @@
 openai==1.64.0
 pandas==2.2.3
+aiohttp====3.11.12
+tiktoken==0.5.2
