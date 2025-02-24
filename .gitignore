@@ -11,4 +11,9 @@ wheels/
 
 
 data/output
-data/output/txt/1.text comparison - original vs. corrected.htm
+Pipfile
+Pipfile.lock
+.env
+
+log/
+data/output*/
