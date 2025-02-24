@@ -12,7 +12,7 @@ class DatasetPreparation:
         
     def run(self, skip_if_exist=True):
         # Training data
-        self.prepare(
+        self.prepare_train_val(
             original_file=self.config.train_files["original"],
             corrected_file=self.config.train_files["corrected"],
             output_file=self.config.dataset_train_filename,
@@ -20,14 +20,21 @@ class DatasetPreparation:
         )
         
         # Validation data
-        self.prepare(
+        self.prepare_train_val(
             original_file=self.config.val_files["original"],
             corrected_file=self.config.val_files["corrected"],
             output_file=self.config.dataset_val_filename,
             skip_if_exist=skip_if_exist
         )
 
-    def prepare(self, original_file: str, corrected_file: str, output_file: str, skip_if_exist=True):
+        # Test data
+        self.prepare_test(
+            original_file=self.config.test_files["original"],
+            output_file=self.config.dataset_test_filename,
+            skip_if_exist=skip_if_exist 
+        )
+
+    def prepare_train_val(self, original_file: str, corrected_file: str, output_file: str, skip_if_exist=True):
         if skip_if_exist and os.path.exists(output_file):
             logger.debug(f"Dataset {output_file} already exists, skip.")
             return
@@ -49,13 +56,33 @@ class DatasetPreparation:
             
         dataset = []
         for orig, corr in zip(orig_lines, corr_lines):
-            record = self.create_chat_example(orig.strip(), corr.strip())
+            record = self.create_chat_example(orig.strip(), corr.strip(), for_training=True)
             dataset.append(record)
             
         save_to_jsonl(dataset, output_file)
         logger.info(f"Created dataset with {len(dataset)} examples in {output_file}")
 
-    def create_chat_example(self, original: str, corrected: str) -> Dict:
+    def prepare_test(self, original_file: str, output_file: str, skip_if_exist=True):
+        if skip_if_exist and os.path.exists(output_file):
+            logger.debug(f"Dataset {output_file} already exists, skip.")
+            return
+            
+        if not os.path.exists(original_file):
+            logger.warning(f"Original file {original_file} does not exist.")
+            return
+            
+        with open(original_file, 'r', encoding='utf-8') as f_orig:
+            orig_lines = f_orig.readlines()
+
+        dataset = []
+        for orig in orig_lines:
+            record = self.create_chat_example(orig.strip(), None, for_training=False)
+            dataset.append(record)
+            
+        save_to_jsonl(dataset, output_file)
+        logger.info(f"Created dataset with {len(dataset)} examples in {output_file}")
+
+    def create_chat_example(self, original: str, corrected: str|None, for_training: bool=True) -> Dict:
         messages = [
             {
                 "role": "user",
@@ -72,10 +99,20 @@ Please respond in the following JSON format:
 The original sentence is:
 {original}"""
             },
-            {
-                "role": "assistant",
-                "content": f'{{"corrected": "{corrected}"}}'
-            }
         ]
         
-        return {"messages": messages} 
+        if for_training:
+            return {"messages": messages}
+        
+        if corrected is not None:
+            messages.append({
+                "role": "assistant",
+                "content": f'{{"corrected": "{corrected}"}}'
+            })
+        
+        return {
+            "messages": messages, 
+            "metadata": {
+                "original": original,
+            }
+        } 

@@ -5,15 +5,16 @@ from lib.dataset_preparation import DatasetPreparation
 import settings
 from lib.utils import setup_log
 
+skip_if_exist = True
+# skip_if_exist = False
 
 def main():
-    print(os.environ["OPENAI_API_KEY"])
     # Create output directory if it doesn't exist
     os.makedirs("data/output/dataset", exist_ok=True)
     
     # Prepare the dataset
     dataset_prep = DatasetPreparation(settings)
-    dataset_prep.run()
+    dataset_prep.run(skip_if_exist=skip_if_exist)
     
 
 if __name__ == "__main__":
