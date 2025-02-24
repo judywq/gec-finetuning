@@ -1,5 +1,4 @@
 from pathlib import Path
-import pandas as pd
 from errant.converter import convert_m2_file
 
 
