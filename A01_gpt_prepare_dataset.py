@@ -6,7 +6,7 @@ import settings
 from lib.utils import setup_log
 
 skip_if_exist = True
-# skip_if_exist = False
+skip_if_exist = False
 
 def main():
     # Create output directory if it doesn't exist

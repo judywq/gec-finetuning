@@ -1,5 +1,6 @@
 import os
 import json
+import random
 from typing import Dict, List
 import logging
 from lib.io import save_to_jsonl
@@ -15,28 +16,34 @@ class DatasetPreparation:
         self.prepare_train_val(
             original_file=self.config.train_files["original"],
             corrected_file=self.config.train_files["corrected"],
-            output_file=self.config.dataset_train_filename,
+            train_output_file=self.config.dataset_train_filename,
+            val_output_file=self.config.dataset_val_filename,
             skip_if_exist=skip_if_exist
         )
         
         # Validation data
-        self.prepare_train_val(
-            original_file=self.config.val_files["original"],
-            corrected_file=self.config.val_files["corrected"],
-            output_file=self.config.dataset_val_filename,
-            skip_if_exist=skip_if_exist
-        )
+        # self.prepare_train_val(
+        #     original_file=self.config.val_files["original"],
+        #     corrected_file=self.config.val_files["corrected"],
+        #     output_file=self.config.dataset_val_filename,
+        #     skip_if_exist=skip_if_exist
+        # )
 
         # Test data
         self.prepare_test(
             original_file=self.config.test_files["original"],
+            corrected_file=self.config.test_files["corrected"],
             output_file=self.config.dataset_test_filename,
             skip_if_exist=skip_if_exist 
         )
 
-    def prepare_train_val(self, original_file: str, corrected_file: str, output_file: str, skip_if_exist=True):
-        if skip_if_exist and os.path.exists(output_file):
-            logger.debug(f"Dataset {output_file} already exists, skip.")
+    def prepare_train_val(self, original_file: str, corrected_file: str, train_output_file: str, val_output_file: str, skip_if_exist=True):
+        if skip_if_exist and os.path.exists(train_output_file):
+            logger.debug(f"Dataset {train_output_file} already exists, skip.")
+            return
+
+        if skip_if_exist and os.path.exists(val_output_file):
+            logger.debug(f"Dataset {val_output_file} already exists, skip.")
             return
             
         if not os.path.exists(original_file):
@@ -58,11 +65,19 @@ class DatasetPreparation:
         for orig, corr in zip(orig_lines, corr_lines):
             record = self.create_chat_example(orig.strip(), corr.strip(), for_training=True)
             dataset.append(record)
+        
+        # Split the dataset into train and val with random shuffle
+        random.shuffle(dataset)
+        train_size = int(len(dataset) * self.config.train_rate)
+        train_dataset = dataset[:train_size]
+        val_dataset = dataset[train_size:]
             
-        save_to_jsonl(dataset, output_file)
-        logger.info(f"Created dataset with {len(dataset)} examples in {output_file}")
+        save_to_jsonl(train_dataset, train_output_file)
+        save_to_jsonl(val_dataset, val_output_file)
+        logger.info(f"Created train dataset with {len(train_dataset)} examples in {train_output_file}")
+        logger.info(f"Created val dataset with {len(val_dataset)} examples in {val_output_file}")
 
-    def prepare_test(self, original_file: str, output_file: str, skip_if_exist=True):
+    def prepare_test(self, original_file: str, corrected_file: str, output_file: str, skip_if_exist=True):
         if skip_if_exist and os.path.exists(output_file):
             logger.debug(f"Dataset {output_file} already exists, skip.")
             return
@@ -70,13 +85,18 @@ class DatasetPreparation:
         if not os.path.exists(original_file):
             logger.warning(f"Original file {original_file} does not exist.")
             return
+        if not os.path.exists(corrected_file):
+            logger.warning(f"Corrected file {corrected_file} does not exist.")
+            return
             
-        with open(original_file, 'r', encoding='utf-8') as f_orig:
+        with open(original_file, 'r', encoding='utf-8') as f_orig, \
+             open(corrected_file, 'r', encoding='utf-8') as f_corr:
             orig_lines = f_orig.readlines()
+            corr_lines = f_corr.readlines()
 
         dataset = []
-        for orig in orig_lines:
-            record = self.create_chat_example(orig.strip(), None, for_training=False)
+        for orig, corr in zip(orig_lines, corr_lines):
+            record = self.create_chat_example(orig.strip(), corr.strip(), for_training=False)
             dataset.append(record)
             
         save_to_jsonl(dataset, output_file)
@@ -102,17 +122,18 @@ The original sentence is:
         ]
         
         if for_training:
+            if corrected is not None:
+                messages.append({
+                    "role": "assistant",
+                    "content": f'{{"corrected": "{corrected}"}}'
+                })
             return {"messages": messages}
         
-        if corrected is not None:
-            messages.append({
-                "role": "assistant",
-                "content": f'{{"corrected": "{corrected}"}}'
-            })
-        
+
         return {
             "messages": messages, 
             "metadata": {
                 "original": original,
+                "corrected": corrected if corrected is not None else ""
             }
         } 
