@@ -4,6 +4,7 @@ import random
 from typing import Dict, List
 import logging
 from lib.io import save_to_jsonl
+import settings
 
 logger = logging.getLogger(__name__)
 
@@ -106,18 +107,7 @@ class DatasetPreparation:
         messages = [
             {
                 "role": "user",
-                "content": f"""You are an English linguist and your task is to correct the grammatical and mechanical errors in English sentences. 
-Please make only necessary corrections to the extent that a sentence will be free from errors and comprehensible. 
-Do not alter word choices unnecessarily (e.g., replacing words with synonyms) or make stylistic improvements. 
-Also, the sentences are tokenized, which means punctuation marks are separated from the English words by spaces. 
-When returning the corrected sentences, please use the same tokenized format. 
-Please respond in the following JSON format:
-{{
-  "corrected": "..."
-}}
-
-The original sentence is:
-{original}"""
+                "content": settings.inference_prompt_template.format(original=original)
             },
         ]
         
