@@ -6,6 +6,7 @@ from tqdm import tqdm
 import argparse
 import time
 
+# litellm._turn_on_debug()
 
 async def batch_process_jsonl_file(input_file, output_file, model_name, temperature=0, max_tokens=None, batch_size=10, requests_per_minute=60):
     """
@@ -31,7 +32,7 @@ async def batch_process_jsonl_file(input_file, output_file, model_name, temperat
     delay_between_requests = 60.0 / requests_per_minute if requests_per_minute > 0 else 0
     
     # Open output file for writing
-    with open(output_file, 'w', encoding='utf-8') as f_out:
+    with open(output_file, 'w+', encoding='utf-8') as f_out:
         # Process in batches
         for i in tqdm(range(0, len(lines), batch_size), desc="Processing batches"):
             batch_lines = lines[i:i+batch_size]
