@@ -1,0 +1,49 @@
+{
+  // Use IntelliSense to learn about possible attributes.
+  // Hover to view descriptions of existing attributes.
+  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Python Debugger: Current File",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${file}",
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "DeepSeek Baseline (Top 1)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "C01_deepseek_baseline.py",
+      "console": "integratedTerminal",
+      "args": [
+        "--input",
+        "data/output/dataset/test_top1.jsonl",
+        "--output",
+        "data/output/result/test_result_deepseek_baseline_top1.jsonl",
+        "--model",
+        "deepseek/deepseek-chat"
+      ]
+    },
+    {
+      "name": "DeepSeek Baseline",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "C01_deepseek_baseline.py",
+      "console": "integratedTerminal",
+      "args": [
+        "--input",
+        "data/output/dataset/test.jsonl",
+        "--output",
+        "data/output/result/test_result_deepseek_baseline.jsonl",
+        "--model",
+        "deepseek/deepseek-chat",
+        "--batch_size",
+        "5",
+        "--requests_per_minute",
+        "240"
+      ]
+    }
+  ]
+}
