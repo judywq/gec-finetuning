@@ -4,9 +4,10 @@ import asyncio
 import litellm
 from tqdm import tqdm
 import argparse
+import time
 
 
-async def batch_process_jsonl_file(input_file, output_file, model_name, temperature=0, max_tokens=None, batch_size=10):
+async def batch_process_jsonl_file(input_file, output_file, model_name, temperature=0, max_tokens=None, batch_size=10, requests_per_minute=60):
     """
     Process a JSONL file in batches with DeepSeek model using async and save results to a new JSONL file.
     
@@ -17,6 +18,7 @@ async def batch_process_jsonl_file(input_file, output_file, model_name, temperat
         temperature: Temperature for generation
         max_tokens: Maximum tokens for generation
         batch_size: Number of requests to process in parallel
+        requests_per_minute: Maximum number of requests per minute to avoid rate limits
     """
     # Create output directory if it doesn't exist
     os.makedirs(os.path.dirname(output_file), exist_ok=True)
@@ -24,6 +26,9 @@ async def batch_process_jsonl_file(input_file, output_file, model_name, temperat
     # Read all lines from input file
     with open(input_file, 'r', encoding='utf-8') as f_in:
         lines = f_in.readlines()
+    
+    # Calculate delay between requests to respect rate limits
+    delay_between_requests = 60.0 / requests_per_minute if requests_per_minute > 0 else 0
     
     # Open output file for writing
     with open(output_file, 'w', encoding='utf-8') as f_out:
@@ -53,6 +58,9 @@ async def batch_process_jsonl_file(input_file, output_file, model_name, temperat
                     ]
                     f_out.write(json.dumps(error_output) + '\n')
             
+            # Start time for rate limiting
+            batch_start_time = time.time()
+            
             # Wait for all tasks in the batch to complete
             batch_results = await asyncio.gather(*tasks, return_exceptions=True)
             
@@ -68,6 +76,15 @@ async def batch_process_jsonl_file(input_file, output_file, model_name, temperat
                     f_out.write(json.dumps(error_output) + '\n')
                 else:
                     f_out.write(json.dumps(result) + '\n')
+            
+            # Calculate time spent on this batch and delay if needed to respect rate limits
+            batch_duration = time.time() - batch_start_time
+            expected_duration = len(batch_lines) * delay_between_requests
+            
+            if batch_duration < expected_duration:
+                delay_needed = expected_duration - batch_duration
+                print(f"Rate limiting: Sleeping for {delay_needed:.2f} seconds")
+                await asyncio.sleep(delay_needed)
 
 async def process_request(model_name, messages, metadata, temperature, max_tokens):
     """Process a single request and return the formatted result."""
@@ -109,6 +126,8 @@ def main():
                         help="Maximum tokens for generation")
     parser.add_argument("--batch_size", type=int, default=10,
                         help="Number of requests to process in parallel")
+    parser.add_argument("--requests_per_minute", type=int, default=60,
+                        help="Maximum number of requests per minute (rate limit)")
     
     args = parser.parse_args()
     
@@ -119,7 +138,8 @@ def main():
         args.model,
         args.temperature,
         args.max_tokens,
-        args.batch_size
+        args.batch_size,
+        args.requests_per_minute
     ))
     print(f"Results saved to {args.output}")
 
