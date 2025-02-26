@@ -1,4 +1,5 @@
 import json
+import re
 import pandas as pd
 import logging
 import os
@@ -36,6 +37,7 @@ class DataFormatter:
             
         # Read and process the results
         results = []
+        error_count = 0
         with open(result_file, 'r', encoding='utf-8') as f:
             for line in f:
                 try:
@@ -43,10 +45,13 @@ class DataFormatter:
                     data = json.loads(line)
                     result = self._process_result(model_name, data)
                     results.append(result)
+                    if result.get(f'{model_name}_error', "") != "":
+                        error_count += 1
                 except Exception as e:
                     logger.error(f"Error processing line: {e}")
                     continue
         
+        logger.info(f"Error count: {error_count}")
         # Convert to DataFrame and save
         if results:
             df = pd.DataFrame(results)
@@ -68,7 +73,7 @@ class DataFormatter:
         try:
             # The response is in the format: {"choices": [{"message": {"content": '{"corrected": "..."}'}}]}
             raw_content = response.get('choices', [{}])[0].get('message', {}).get('content', '{}')
-            content = self._preprocess_content(raw_content)
+            content = self._extract_json_content(raw_content)
             llm_response = json.loads(content)
             llm_corrected = llm_response.get('corrected', '')
         except Exception as e:
@@ -84,6 +89,11 @@ class DataFormatter:
             f'{model_name}_error': error_message
         }
     
-    def _preprocess_content(self, content: str) -> str:
-        """Preprocess the content to remove the ```json and ``` tags"""
-        return content.replace('```json', '').replace('```', '')
+    def _extract_json_content(self, content: str) -> str:
+        """Extract the JSON content from the response"""
+        json_pattern = r'```json\s*({[\s\S]*?})\s*```'
+        match = re.search(json_pattern, content)
+        if match:
+            return match.group(1)
+        else:
+            return content
