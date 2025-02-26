@@ -31,7 +31,7 @@ def setup_log(level=None, log_path='./log/txt', need_file=True):
     handlers.append(console_handler)
 
     # https://stackoverflow.com/a/11111212
-    logging.basicConfig(level=logging.DEBUG,
+    logging.basicConfig(level=level,
                         handlers=handlers)
 
 def backup_output_file(filename, padding=3):

@@ -174,7 +174,7 @@ async def process_request(model_name, messages, metadata, temperature, max_token
             ]
         except Exception as e:
             if attempt < max_retries:
-                wait_time = 2 ** attempt  # Exponential backoff
+                wait_time = 2 ** (attempt - 1)  # Exponential backoff
                 logger.warning(f"Attempt {attempt + 1} failed with error: {e}. Retrying in {wait_time} seconds...")
                 await asyncio.sleep(wait_time)
             else:
@@ -260,5 +260,5 @@ def main():
         print(f"Results saved to {args.output}")
 
 if __name__ == "__main__":
-    setup_log(logging.DEBUG)
+    setup_log(logging.INFO)
     main()

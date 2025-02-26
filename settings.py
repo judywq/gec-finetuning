@@ -15,6 +15,7 @@ test_files = {
 dataset_train_filename = "data/output/dataset/train.jsonl"
 dataset_val_filename = "data/output/dataset/val.jsonl"
 dataset_test_filename = "data/output/dataset/test.jsonl"
+dataset_test_openai_batch_filename = "data/output/dataset/test_openai_batch.jsonl"
 dataset_test_result_gpt_4o_baseline_filename = "data/output/result/test_result_gpt_4o_baseline.jsonl"
 dataset_test_result_gpt_4o_finetuned_filename = "data/output/result/test_result_gpt_4o_finetuned.jsonl"
 
