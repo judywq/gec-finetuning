@@ -53,7 +53,7 @@ def backup_output_file(filename, padding=3):
 
     if os.path.exists(filename):
         new_filename = find_next_backup_filename(filename)
-        logger.info(f"Backup {filename} to {new_filename}")
+        # logger.info(f"Backup {filename} to {new_filename}")
         os.rename(filename, new_filename)
         return new_filename
     return None
