@@ -6,7 +6,7 @@ from tqdm import tqdm
 import argparse
 import time
 
-from lib.utils import ask_if_delete_file
+from lib.utils import backup_output_file
 
 # litellm._turn_on_debug()
 
@@ -120,8 +120,7 @@ def main():
     
     args = parser.parse_args()
     
-    if ask_if_delete_file(args.output) == 'a':
-        return
+    backup_output_file(args.output)
     
     print(f"Processing {args.input} with model {args.model}...")
     asyncio.run(batch_process_jsonl_file(

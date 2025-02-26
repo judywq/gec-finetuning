@@ -3,7 +3,7 @@ import asyncio
 import logging
 from lib.finetuning_helper import FineTuningHelper
 from lib.api_request_parallel_processor import process_api_requests_from_file_openai
-from lib.utils import ask_if_delete_file
+from lib.utils import backup_output_file
 
 
 logger = logging.getLogger(__name__)
@@ -32,15 +32,15 @@ class ModelRunner:
                     logger.info(f"Skip running model {fine_tuned_model}.")
                     return
                 else:
-                    self.ask_if_delete_output_file(output_fn)
-            else:
-                self._run_openai_model(
-                    input_jsonl_fn=input_fn,
-                    output_jsonl_fn=output_fn,
-                    model=fine_tuned_model,
-                    temperature=self.config.inference_finetuned_model_temperature,
-                    api_key=os.getenv("OPENAI_API_KEY"),
-                )
+                    backup_output_file(output_fn)
+
+            self._run_openai_model(
+                input_jsonl_fn=input_fn,
+                output_jsonl_fn=output_fn,
+                model=fine_tuned_model,
+                temperature=self.config.inference_finetuned_model_temperature,
+                api_key=os.getenv("OPENAI_API_KEY"),
+            )
         else:
             logger.info(f"Fine-tuning model is not ready yet: {job}")
 
@@ -56,8 +56,7 @@ class ModelRunner:
                 logger.info(f"Skip running model {model_id}.")
                 return
             else:
-                if ask_if_delete_file(output_fn) == 'a':
-                    return
+                backup_output_file(output_fn)
         
         self._run_openai_model(
             input_jsonl_fn=input_fn,

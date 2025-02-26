@@ -1,16 +1,15 @@
 import os
 import datetime
-from settings import DEFAULT_LOG_LEVEL
 
 import logging
 logger = logging.getLogger(__name__)
-
 
 def get_date_str():
     now = datetime.datetime.now()
     return now.strftime("%Y-%m-%d_%H-%M-%S")
 
 def setup_log(level=None, log_path='./log/txt', need_file=True):
+    from settings import DEFAULT_LOG_LEVEL
     if not level:
         level = logging.getLevelName(DEFAULT_LOG_LEVEL)
     if not os.path.exists(log_path):
@@ -35,25 +34,35 @@ def setup_log(level=None, log_path='./log/txt', need_file=True):
     logging.basicConfig(level=logging.DEBUG,
                         handlers=handlers)
 
-def ask_if_delete_file(filename):
-    """Ask if the user wants to delete the output file.
+def backup_output_file(filename, padding=3):
+    """Backup the output file.
     Args:
-        filename: str, the path to the file to be deleted
-    Returns:
-        str, 'y' if the file is deleted or not exists, 
-            'a' if the user wants to abort, 
-            'n' otherwise
+        filename: str, the path to the file to be backed up
+    Returns: str, the path to the backup file
     """
+    def find_next_backup_filename(filename):
+        base_name = os.path.splitext(filename)[0]
+        ext = os.path.splitext(filename)[1]
+        count = 1
+        while True:
+            new_filename = f"{base_name}.bk{str(count).zfill(padding)}{ext}"
+            if not os.path.exists(new_filename):
+                break
+            count += 1
+        return new_filename
+
     if os.path.exists(filename):
-        logger.info(f"Output file {filename} already exists. Delete it? (y)es/(n)o/(A)bort")
-        answer = input().lower()
-        if answer in ['y', 'yes']:
-            os.remove(filename)
-            return 'y'
-        elif answer in ['a', 'abort', '']:
-            return 'a'
-        elif answer in ['n', 'no']:
-            return 'n'
-        else:
-            raise ValueError(f"Invalid answer: {answer}")
-    return 'y'
+        new_filename = find_next_backup_filename(filename)
+        logger.info(f"Backup {filename} to {new_filename}")
+        os.rename(filename, new_filename)
+        return new_filename
+    return None
+
+
+def test_backup_output_file():
+    filename = "data/test.txt"
+    print(backup_output_file(filename))
+
+
+if __name__ == "__main__":
+    test_backup_output_file()
