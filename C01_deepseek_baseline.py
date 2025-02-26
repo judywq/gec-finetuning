@@ -10,7 +10,7 @@ import time
 
 async def batch_process_jsonl_file(input_file, output_file, model_name, temperature=0, max_tokens=None, batch_size=10, requests_per_minute=60):
     """
-    Process a JSONL file in batches with DeepSeek model using async and save results to a new JSONL file.
+    Process a JSONL file with DeepSeek model using a sliding window of concurrent tasks.
     
     Args:
         input_file: Path to input JSONL file
@@ -18,74 +18,60 @@ async def batch_process_jsonl_file(input_file, output_file, model_name, temperat
         model_name: DeepSeek model name
         temperature: Temperature for generation
         max_tokens: Maximum tokens for generation
-        batch_size: Number of requests to process in parallel
+        batch_size: Maximum number of concurrent tasks
         requests_per_minute: Maximum number of requests per minute to avoid rate limits
     """
-    # Create output directory if it doesn't exist
     os.makedirs(os.path.dirname(output_file), exist_ok=True)
     
-    # Read all lines from input file
     with open(input_file, 'r', encoding='utf-8') as f_in:
         lines = f_in.readlines()
     
-    # Calculate delay between requests to respect rate limits
     delay_between_requests = 60.0 / requests_per_minute if requests_per_minute > 0 else 0
     
-    # Open output file for writing
-    with open(output_file, 'w+', encoding='utf-8') as f_out:
-        # Process in batches
-        for i in tqdm(range(0, len(lines), batch_size), desc="Processing batches"):
-            batch_lines = lines[i:i+batch_size]
-            tasks = []
+    # Create a semaphore to limit concurrent tasks
+    semaphore = asyncio.Semaphore(batch_size)
+    
+    async def process_with_rate_limit(line):
+        async with semaphore:
+            start_time = time.time()
+            try:
+                data = json.loads(line)
+                messages = data.get("messages", [])
+                metadata = data.get("metadata", {})
+                result = await process_request(model_name, messages, metadata, temperature, max_tokens)
+            except json.JSONDecodeError as e:
+                print(f"Error parsing JSON: {e}")
+                result = [
+                    {"messages": []},
+                    {"error": f"JSON parse error: {str(e)}"},
+                    {}
+                ]
+            except Exception as e:
+                print(f"Error processing request: {e}")
+                result = [
+                    {"messages": messages if 'messages' in locals() else []},
+                    {"error": str(e)},
+                    metadata if 'metadata' in locals() else {}
+                ]
             
-            # Create tasks for each line in the batch
-            for line in batch_lines:
-                try:
-                    data = json.loads(line)
-                    messages = data.get("messages", [])
-                    metadata = data.get("metadata", {})
-                    
-                    # Create a task for each request
-                    task = asyncio.create_task(process_request(model_name, messages, metadata, temperature, max_tokens))
-                    tasks.append(task)
-                    
-                except json.JSONDecodeError as e:
-                    print(f"Error parsing JSON: {e}")
-                    # Write error to output
-                    error_output = [
-                        {"messages": []},
-                        {"error": f"JSON parse error: {str(e)}"},
-                        {}
-                    ]
-                    f_out.write(json.dumps(error_output) + '\n')
-            
-            # Start time for rate limiting
-            batch_start_time = time.time()
-            
-            # Wait for all tasks in the batch to complete
-            batch_results = await asyncio.gather(*tasks, return_exceptions=True)
-            
-            # Write results to output file
-            for result in batch_results:
-                if isinstance(result, Exception):
-                    # Handle exceptions
-                    error_output = [
-                        {"messages": []},
-                        {"error": f"Processing error: {str(result)}"},
-                        {}
-                    ]
-                    f_out.write(json.dumps(error_output) + '\n')
-                else:
-                    f_out.write(json.dumps(result) + '\n')
-            
-            # Calculate time spent on this batch and delay if needed to respect rate limits
-            batch_duration = time.time() - batch_start_time
-            expected_duration = len(batch_lines) * delay_between_requests
-            
-            if batch_duration < expected_duration:
-                delay_needed = expected_duration - batch_duration
+            # Apply rate limiting
+            elapsed = time.time() - start_time
+            if elapsed < delay_between_requests:
+                delay_needed = delay_between_requests - elapsed
                 print(f"Rate limiting: Sleeping for {delay_needed:.2f} seconds")
                 await asyncio.sleep(delay_needed)
+            
+            return result
+    
+    # Create tasks for all lines
+    tasks = [process_with_rate_limit(line) for line in lines]
+    
+    # Process all tasks with progress bar
+    with open(output_file, 'w', encoding='utf-8') as f_out:
+        for result in tqdm(asyncio.as_completed(tasks), total=len(tasks), desc="Processing requests"):
+            result_data = await result
+            f_out.write(json.dumps(result_data) + '\n')
+            f_out.flush()  # Ensure results are written immediately
 
 async def process_request(model_name, messages, metadata, temperature, max_tokens):
     """Process a single request and return the formatted result."""
