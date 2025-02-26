@@ -17,3 +17,4 @@ Pipfile.lock
 
 log/
 data/output*/
+data/backup/*
