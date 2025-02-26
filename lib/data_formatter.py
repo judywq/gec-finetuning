@@ -79,8 +79,13 @@ class DataFormatter:
             except (KeyError, IndexError, AttributeError) as e:
                 logger.error(f"Error extracting raw content: {e}")
                 raw_content = ''
-            content = self._extract_json_content(raw_content)
-            json_content = json.loads(content)
+            content = self._extract_json_markdown(raw_content)
+            content = self._extract_json_content(content)
+            try:
+                json_content = json.loads(content)
+            except json.JSONDecodeError as e:
+                content = self.escape_quotes_in_json_values(content)
+                json_content = json.loads(content)
             llm_corrected = json_content.get('corrected', '')
         except Exception as e:
             logger.error(f"Error extracting {model_name} correction: {e}")
@@ -91,15 +96,46 @@ class DataFormatter:
             'corrected': corrected,
             f'{model_name}_corrected': llm_corrected,
             f'{model_name}_response': response,
-            f'{model_name}_content': raw_content,
+            f'{model_name}_raw_content': raw_content,
+            f'{model_name}_cleaned_content': content,
             f'{model_name}_error': error_message
         }
     
-    def _extract_json_content(self, content: str) -> str:
-        """Extract the JSON content from the response"""
+    def _extract_json_markdown(self, content: str) -> str:
+        """Extract the JSON content in markdown format from the response"""
         json_pattern = r'```json\s*({[\s\S]*?})\s*```'
         match = re.search(json_pattern, content)
         if match:
             return match.group(1)
         else:
             return content
+
+    def _extract_json_content(self, content: str) -> str:
+        """Extract the JSON from plain text"""
+        json_pattern = r'({[\s\S]*?})\s+'
+        match = re.search(json_pattern, content)
+        if match:
+            return match.group(1)
+        else:
+            return content
+
+    @staticmethod
+    def escape_quotes_in_json_values(json_string):
+        """Escape any unescaped double quotes in the content"""
+        pattern = r'(: *")(.*?)("\s*(?=}))'
+        
+        def replace_func(match):
+            prefix, content, suffix = match.groups()
+            # Escape any unescaped double quotes in the content
+            escaped_content = content.replace('"', '\\"')
+            return prefix + escaped_content + suffix
+        
+        return re.sub(pattern, replace_func, json_string)
+    
+
+if __name__ == "__main__":
+    content = '{"corrected": "I " rappel " , "paintball" ..."}'
+    # content = '{"corrected": "Ia ..."}'
+    content = """{\n"corrected": "Now lookee here , " he said , " the question being whether you're to be let to live . You know"\n}"""
+    print(DataFormatter.escape_quotes_in_json_values(content))
+
