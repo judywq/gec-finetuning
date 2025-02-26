@@ -5,12 +5,24 @@ import litellm
 from tqdm import tqdm
 import argparse
 import time
+import io
+import logging
 
-from lib.utils import backup_output_file
+from lib.utils import backup_output_file, setup_log
+
+logger = logging.getLogger(__name__)
 
 # litellm._turn_on_debug()
 
-async def batch_process_jsonl_file(input_file, output_file, model_name, temperature=0, max_tokens=None, batch_size=10, requests_per_minute=60):
+async def batch_process_jsonl_file(
+    input_file, 
+    output_file, 
+    model_name, 
+    temperature=0, 
+    max_tokens=None, 
+    batch_size=10, 
+    requests_per_minute=60, 
+    dry_run=False):
     """
     Process a JSONL file with DeepSeek model using a sliding window of concurrent tasks.
     
@@ -23,10 +35,15 @@ async def batch_process_jsonl_file(input_file, output_file, model_name, temperat
         batch_size: Maximum number of concurrent tasks
         requests_per_minute: Maximum number of requests per minute to avoid rate limits
     """
-    os.makedirs(os.path.dirname(output_file), exist_ok=True)
+    # Create output file directory if not dry run
+    if not dry_run:
+        os.makedirs(os.path.dirname(output_file), exist_ok=True)
     
     with open(input_file, 'r', encoding='utf-8') as f_in:
         lines = f_in.readlines()
+        
+    # sentence_ids = list(map(lambda x: json.loads(x)['metadata']['sentence_id'], lines))
+    # print(sentence_ids)
     
     delay_between_requests = 60.0 / requests_per_minute if requests_per_minute > 0 else 0
     
@@ -40,7 +57,7 @@ async def batch_process_jsonl_file(input_file, output_file, model_name, temperat
                 data = json.loads(line)
                 messages = data.get("messages", [])
                 metadata = data.get("metadata", {})
-                result = await process_request(model_name, messages, metadata, temperature, max_tokens)
+                result = await process_request(model_name, messages, metadata, temperature, max_tokens, dry_run)
             except json.JSONDecodeError as e:
                 print(f"Error parsing JSON: {e}")
                 result = [
@@ -60,7 +77,7 @@ async def batch_process_jsonl_file(input_file, output_file, model_name, temperat
             elapsed = time.time() - start_time
             if elapsed < delay_between_requests:
                 delay_needed = delay_between_requests - elapsed
-                print(f"Rate limiting: Sleeping for {delay_needed:.2f} seconds")
+                logger.debug(f"Rate limiting: Sleeping for {delay_needed:.2f} seconds")
                 await asyncio.sleep(delay_needed)
             
             return result
@@ -69,14 +86,32 @@ async def batch_process_jsonl_file(input_file, output_file, model_name, temperat
     tasks = [process_with_rate_limit(line) for line in lines]
     
     # Process all tasks with progress bar
-    with open(output_file, 'w', encoding='utf-8') as f_out:
+    output_buffer = io.StringIO() if dry_run else open(output_file, 'w', encoding='utf-8')
+    try:
         for result in tqdm(asyncio.as_completed(tasks), total=len(tasks), desc="Processing requests"):
             result_data = await result
-            f_out.write(json.dumps(result_data) + '\n')
-            f_out.flush()  # Ensure results are written immediately
+            output_buffer.write(json.dumps(result_data) + '\n')
+            if not dry_run:
+                output_buffer.flush()  # Ensure results are written immediately
+    finally:
+        if not dry_run:
+            output_buffer.close()
+        
+    if dry_run:
+        return output_buffer.getvalue()
 
-async def process_request(model_name, messages, metadata, temperature, max_tokens):
+async def process_request(model_name, messages, metadata, temperature, max_tokens, dry_run):
     """Process a single request and return the formatted result."""
+    if dry_run:
+        sentence_id = metadata["sentence_id"]
+        logger.debug("Processing sentence: %s", sentence_id)
+        time_to_sleep = sentence_id % 5
+        await asyncio.sleep(time_to_sleep)
+        return [
+            {"messages": messages},
+            {"error": "Dry run"},
+            metadata
+        ]
     try:
         # Call the model asynchronously
         response = await litellm.acompletion(
@@ -117,22 +152,37 @@ def main():
                         help="Number of requests to process in parallel")
     parser.add_argument("--requests_per_minute", type=int, default=60,
                         help="Maximum number of requests per minute (rate limit)")
+    parser.add_argument("--dry-run", type=bool, default=False,
+                        help="Run without sending requests or saving results")
     
     args = parser.parse_args()
     
-    backup_output_file(args.output)
+    if not args.dry_run:
+        backup_output_file(args.output)
+    else:
+        logger.info("-" * 20)
+        logger.info("- Dry run mode -")
+        logger.info("-" * 20)
     
-    print(f"Processing {args.input} with model {args.model}...")
-    asyncio.run(batch_process_jsonl_file(
+    logger.info("Processing %s with model %s...", args.input, args.model)
+    result = asyncio.run(batch_process_jsonl_file(
         args.input, 
         args.output,
         args.model,
         args.temperature,
         args.max_tokens,
         args.batch_size,
-        args.requests_per_minute
+        args.requests_per_minute,
+        args.dry_run
     ))
-    print(f"Results saved to {args.output}")
+    
+    if args.dry_run:
+        print("Dry run output:")
+        print(result)
+        print("-" * 20)
+    else:
+        print(f"Results saved to {args.output}")
 
 if __name__ == "__main__":
+    setup_log(logging.INFO)
     main()
