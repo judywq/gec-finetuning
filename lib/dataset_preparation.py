@@ -96,14 +96,21 @@ class DatasetPreparation:
             corr_lines = f_corr.readlines()
 
         dataset = []
+        sentence_id = 1
         for orig, corr in zip(orig_lines, corr_lines):
-            record = self.create_chat_example(orig.strip(), corr.strip(), for_training=False)
+            record = self.create_chat_example(
+                original=orig.strip(), 
+                corrected=corr.strip(), 
+                for_training=False, 
+                sentence_id=sentence_id
+            )
             dataset.append(record)
+            sentence_id += 1
             
         save_to_jsonl(dataset, output_file)
         logger.info(f"Created dataset with {len(dataset)} examples in {output_file}")
 
-    def create_chat_example(self, original: str, corrected: str|None, for_training: bool=True) -> Dict:
+    def create_chat_example(self, original: str, corrected: str|None, for_training: bool=True, sentence_id: int|None=None) -> Dict:
         messages = [
             {
                 "role": "user",
@@ -123,6 +130,7 @@ class DatasetPreparation:
         return {
             "messages": messages, 
             "metadata": {
+                "sentence_id": sentence_id,
                 "original": original,
                 "corrected": corrected if corrected is not None else ""
             }
