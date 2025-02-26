@@ -22,6 +22,7 @@ async def batch_process_jsonl_file(
     max_tokens=None, 
     batch_size=10, 
     requests_per_minute=60, 
+    previous_output_file=None,
     dry_run=False):
     """
     Process a JSONL file with DeepSeek model using a sliding window of concurrent tasks.
@@ -34,16 +35,30 @@ async def batch_process_jsonl_file(
         max_tokens: Maximum tokens for generation
         batch_size: Maximum number of concurrent tasks
         requests_per_minute: Maximum number of requests per minute to avoid rate limits
+        previous_output_file: Path to previous output JSONL file
+        dry_run: Whether to run in dry run mode
     """
     # Create output file directory if not dry run
     if not dry_run:
         os.makedirs(os.path.dirname(output_file), exist_ok=True)
     
+    # Load previous results if available
+    previous_results = {}
+    if previous_output_file and os.path.exists(previous_output_file):
+        with open(previous_output_file, 'r', encoding='utf-8') as f:
+            for line in f:
+                try:
+                    result = json.loads(line)
+                    # Get sentence_id from metadata
+                    sentence_id = result[2].get('sentence_id')  # metadata is the third element
+                    if sentence_id is not None and is_successful_result(result):
+                        previous_results[sentence_id] = line.strip()
+                except (json.JSONDecodeError, IndexError) as e:
+                    logger.warning(f"Error parsing previous result: {e}")
+                    continue
+    
     with open(input_file, 'r', encoding='utf-8') as f_in:
         lines = f_in.readlines()
-        
-    # sentence_ids = list(map(lambda x: json.loads(x)['metadata']['sentence_id'], lines))
-    # print(sentence_ids)
     
     delay_between_requests = 60.0 / requests_per_minute if requests_per_minute > 0 else 0
     
@@ -51,37 +66,45 @@ async def batch_process_jsonl_file(
     semaphore = asyncio.Semaphore(batch_size)
     
     async def process_with_rate_limit(line):
-        async with semaphore:
-            start_time = time.time()
-            try:
-                data = json.loads(line)
-                messages = data.get("messages", [])
-                metadata = data.get("metadata", {})
-                result = await process_request(model_name, messages, metadata, temperature, max_tokens, dry_run)
-            except json.JSONDecodeError as e:
-                print(f"Error parsing JSON: {e}")
-                result = [
-                    {"messages": []},
-                    {"error": f"JSON parse error: {str(e)}"},
-                    {}
-                ]
-            except Exception as e:
-                print(f"Error processing request: {e}")
-                result = [
-                    {"messages": messages if 'messages' in locals() else []},
-                    {"error": str(e)},
-                    metadata if 'metadata' in locals() else {}
-                ]
+        try:
+            data = json.loads(line)
+            sentence_id = data.get("metadata", {}).get("sentence_id")
             
-            # Apply rate limiting
-            elapsed = time.time() - start_time
-            if elapsed < delay_between_requests:
-                delay_needed = delay_between_requests - elapsed
-                logger.debug(f"Rate limiting: Sleeping for {delay_needed:.2f} seconds")
-                await asyncio.sleep(delay_needed)
+            # Check if we have a successful previous result
+            if sentence_id in previous_results:
+                logger.debug(f"Using cached result for sentence_id: {sentence_id}")
+                return json.loads(previous_results[sentence_id])
             
-            return result
-    
+            async with semaphore:
+                start_time = time.time()
+                try:
+                    messages = data.get("messages", [])
+                    metadata = data.get("metadata", {})
+                    result = await process_request(model_name, messages, metadata, temperature, max_tokens, dry_run)
+                except Exception as e:
+                    logger.error(f"Error processing request: {e}")
+                    result = [
+                        {"messages": messages if 'messages' in locals() else []},
+                        {"error": str(e)},
+                        metadata if 'metadata' in locals() else {}
+                    ]
+                
+                # Apply rate limiting
+                elapsed = time.time() - start_time
+                if elapsed < delay_between_requests:
+                    delay_needed = delay_between_requests - elapsed
+                    logger.debug(f"Rate limiting: Sleeping for {delay_needed:.2f} seconds")
+                    await asyncio.sleep(delay_needed)
+                
+                return result
+        except json.JSONDecodeError as e:
+            logger.error(f"Error parsing JSON: {e}")
+            return [
+                {"messages": []},
+                {"error": f"JSON parse error: {str(e)}"},
+                {}
+            ]
+
     # Create tasks for all lines
     tasks = [process_with_rate_limit(line) for line in lines]
     
@@ -136,6 +159,27 @@ async def process_request(model_name, messages, metadata, temperature, max_token
             metadata
         ]
 
+def is_successful_result(result):
+    """
+    Check if a result was processed successfully.
+    This function can be extended to add more sophisticated checks.
+    
+    Args:
+        result: List containing [request, response, metadata]
+    
+    Returns:
+        bool: True if the result was processed successfully
+    """
+    try:
+        # Check if there is a valid response
+        response = result[1]  # response is the second element
+        if response["choices"][0]["message"]["content"] is not None:
+            return True
+        else:
+            return False
+    except (IndexError, TypeError, KeyError):
+        return False
+
 def main():
     parser = argparse.ArgumentParser(description="Process a JSONL file with DeepSeek model")
     parser.add_argument("--input", type=str, default="data/output/dataset/test_top5.jsonl",
@@ -157,12 +201,14 @@ def main():
     
     args = parser.parse_args()
     
-    if not args.dry_run:
-        backup_output_file(args.output)
-    else:
+    if args.dry_run:
+        previous_output_file = args.output
         logger.info("-" * 20)
         logger.info("- Dry run mode -")
         logger.info("-" * 20)
+    else:
+        previous_output_file = backup_output_file(args.output)
+        logger.info("Backup file: %s --> %s", args.output, previous_output_file)
     
     logger.info("Processing %s with model %s...", args.input, args.model)
     result = asyncio.run(batch_process_jsonl_file(
@@ -173,6 +219,7 @@ def main():
         args.max_tokens,
         args.batch_size,
         args.requests_per_minute,
+        previous_output_file,
         args.dry_run
     ))
     
@@ -184,5 +231,5 @@ def main():
         print(f"Results saved to {args.output}")
 
 if __name__ == "__main__":
-    setup_log(logging.INFO)
+    setup_log(logging.DEBUG)
     main()
