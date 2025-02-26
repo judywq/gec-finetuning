@@ -222,9 +222,9 @@ def main():
                         help="Number of requests to process in parallel")
     parser.add_argument("--requests_per_minute", type=int, default=60,
                         help="Maximum number of requests per minute (rate limit)")
-    parser.add_argument("--dry-run", type=bool, default=False,
+    parser.add_argument("--dry_run", type=bool, default=False,
                         help="Run without sending requests or saving results")
-    parser.add_argument("--max-retries", type=int, default=3,
+    parser.add_argument("--max_retries", type=int, default=3,
                         help="Maximum number of retry attempts for failed requests")
     
     args = parser.parse_args()

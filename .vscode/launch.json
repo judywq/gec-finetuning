@@ -24,7 +24,7 @@
         "data/output/result/test_result_deepseek_baseline_top1.jsonl",
         "--model",
         "deepseek/deepseek-chat",
-        "--dry-run",
+        "--dry_run",
         "true"
       ]
     },
