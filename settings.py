@@ -15,8 +15,8 @@ test_files = {
 dataset_train_filename = "data/output/dataset/train.jsonl"
 dataset_val_filename = "data/output/dataset/val.jsonl"
 dataset_test_filename = "data/output/dataset/test.jsonl"
-dataset_test_result_baseline_filename = "data/output/result/test_result_baseline.jsonl"
-dataset_test_result_finetuned_filename = "data/output/result/test_result_finetuned.jsonl"
+dataset_test_result_gpt_4o_baseline_filename = "data/output/result/test_result_gpt_4o_baseline.jsonl"
+dataset_test_result_gpt_4o_finetuned_filename = "data/output/result/test_result_gpt_4o_finetuned.jsonl"
 
 train_rate = 0.8
 
@@ -38,11 +38,14 @@ DEFAULT_LOG_LEVEL = "INFO"
 
 # Add these lines to your existing settings.py
 excel_output_dir = "data/output/excel"
-baseline_results_excel = "data/output/excel/baseline_results.xlsx"
-finetuned_results_excel = "data/output/excel/finetuned_results.xlsx"
+gpt_4o_baseline_results_excel = "data/output/excel/baseline_results_gpt_4o.xlsx"
+gpt_4o_finetuned_results_excel = "data/output/excel/finetuned_results_gpt_4o.xlsx"
 
 ################
 # Custom models
+
+dataset_test_result_deepseek_baseline_filename = "data/output/result/test_result_deepseek_baseline.jsonl"
+deepseek_baseline_results_excel = "data/output/excel/baseline_results_deepseek.xlsx"
 
 
 inference_prompt_template = """You are an English linguist and your task is to correct the grammatical and mechanical errors in English sentences. 

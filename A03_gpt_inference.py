@@ -13,8 +13,8 @@ def main():
     
     runner = ModelRunner(settings, run_top_k=run_top_k)
     runner.run(
-        baseline=True,
-        fine_tuned=False,
+        baseline=False,
+        fine_tuned=True,
         skip_if_exists=skip_if_exist
     )
 

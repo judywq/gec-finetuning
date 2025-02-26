@@ -3,6 +3,7 @@ import asyncio
 import logging
 from lib.finetuning_helper import FineTuningHelper
 from lib.api_request_parallel_processor import process_api_requests_from_file_openai
+from lib.utils import ask_if_delete_file
 
 
 logger = logging.getLogger(__name__)
@@ -24,7 +25,7 @@ class ModelRunner:
         if job and job['status'] == 'succeeded':
             fine_tuned_model = job['fine_tuned_model']
             input_fn = self.config.dataset_test_filename
-            output_fn = self.config.dataset_test_result_finetuned_filename
+            output_fn = self.config.dataset_test_result_gpt_4o_finetuned_filename
             
             if os.path.exists(output_fn):
                 if skip_if_exists:
@@ -38,6 +39,7 @@ class ModelRunner:
                     output_jsonl_fn=output_fn,
                     model=fine_tuned_model,
                     temperature=self.config.inference_finetuned_model_temperature,
+                    api_key=os.getenv("OPENAI_API_KEY"),
                 )
         else:
             logger.info(f"Fine-tuning model is not ready yet: {job}")
@@ -47,20 +49,22 @@ class ModelRunner:
         input_fn = self.config.dataset_test_filename
         if self.run_top_k > 0:
             input_fn = self.create_short_file(input_fn)
-        output_fn = self.config.dataset_test_result_baseline_filename
+        output_fn = self.config.dataset_test_result_gpt_4o_baseline_filename
         
         if os.path.exists(output_fn):
             if skip_if_exists:
                 logger.info(f"Skip running model {model_id}.")
                 return
             else:
-                self.ask_if_delete_output_file(output_fn)
+                if ask_if_delete_file(output_fn) == 'a':
+                    return
         
         self._run_openai_model(
             input_jsonl_fn=input_fn,
             output_jsonl_fn=output_fn,
             model=model_id,
             temperature=self.config.inference_base_model_temperature,
+            api_key=os.getenv("OPENAI_API_KEY_BASELINE"),
         )
     
     def create_short_file(self, input_fn):
@@ -71,18 +75,7 @@ class ModelRunner:
                 if i + 1 >= self.run_top_k:
                     break
         return short_fn
-    
-    @staticmethod
-    def ask_if_delete_output_file(output_fn):
-        if os.path.exists(output_fn):
-            logger.info(f"Output file {output_fn} already exists. Delete it? (Y/n)")
-            answer = input().lower()
-            if answer in ['y', 'yes', '']:
-                os.remove(output_fn)
-                return True
-            else:
-                return False
-        return True
+
 
     @classmethod
     def _run_openai_model(
@@ -93,10 +86,10 @@ class ModelRunner:
         temperature=0,
         max_attempts=5,
         logging_level=logging.INFO,
+        api_key=None,
     ):
         logger.info(f"Run model [{model}] with input: {input_jsonl_fn}.")
         # If model and temperature are None, the value in the input file will be used.
-        api_key = os.getenv("OPENAI_API_KEY_BASELINE")
         request_url = "https://api.openai.com/v1/chat/completions"
         max_requests_per_minute = 3_000 * 0.5
         max_tokens_per_minute = 250_000 * 0.5

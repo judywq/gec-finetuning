@@ -6,6 +6,8 @@ from tqdm import tqdm
 import argparse
 import time
 
+from lib.utils import ask_if_delete_file
+
 # litellm._turn_on_debug()
 
 async def batch_process_jsonl_file(input_file, output_file, model_name, temperature=0, max_tokens=None, batch_size=10, requests_per_minute=60):
@@ -117,6 +119,9 @@ def main():
                         help="Maximum number of requests per minute (rate limit)")
     
     args = parser.parse_args()
+    
+    if ask_if_delete_file(args.output) == 'a':
+        return
     
     print(f"Processing {args.input} with model {args.model}...")
     asyncio.run(batch_process_jsonl_file(
