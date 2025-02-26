@@ -53,7 +53,8 @@ async def batch_process_jsonl_file(
                     result = json.loads(line)
                     # Get sentence_id from metadata
                     sentence_id = result[2].get('sentence_id')  # metadata is the third element
-                    if sentence_id is not None and is_successful_result(result):
+                    response = result[1]
+                    if sentence_id is not None and is_successful_response(response):
                         previous_results[sentence_id] = line.strip()
                 except (json.JSONDecodeError, IndexError) as e:
                     logger.warning(f"Error parsing previous result: {e}")
@@ -159,10 +160,16 @@ async def process_request(model_name, messages, metadata, temperature, max_token
                 max_tokens=max_tokens
             )
             
+            response_dict = response.to_dict()
+            if not is_successful_response(response_dict):
+                msg = f"Response is not successful: {response_dict}"
+                logger.warning(msg)
+                raise ValueError(msg)
+            
             # Create the output format: [request, response, metadata]
             return [
                 {"messages": messages},  # Original request
-                response.to_dict(),      # Model response
+                response_dict,           # Model response
                 metadata                 # Original metadata
             ]
         except Exception as e:
@@ -179,20 +186,19 @@ async def process_request(model_name, messages, metadata, temperature, max_token
                     metadata
                 ]
 
-def is_successful_result(result):
+def is_successful_response(response):
     """
     Check if a result was processed successfully.
     This function can be extended to add more sophisticated checks.
     
     Args:
-        result: List containing [request, response, metadata]
+        response: Model response
     
     Returns:
         bool: True if the result was processed successfully
     """
     try:
         # Check if there is a valid response
-        response = result[1]  # response is the second element
         if response["choices"][0]["message"]["content"] is not None:
             return True
         else:
