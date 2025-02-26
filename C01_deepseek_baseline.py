@@ -23,7 +23,8 @@ async def batch_process_jsonl_file(
     batch_size=10, 
     requests_per_minute=60, 
     previous_output_file=None,
-    dry_run=False):
+    dry_run=False,
+    max_retries=3):
     """
     Process a JSONL file with DeepSeek model using a sliding window of concurrent tasks.
     
@@ -37,6 +38,7 @@ async def batch_process_jsonl_file(
         requests_per_minute: Maximum number of requests per minute to avoid rate limits
         previous_output_file: Path to previous output JSONL file
         dry_run: Whether to run in dry run mode
+        max_retries: Maximum number of retry attempts for failed requests
     """
     # Create output file directory if not dry run
     if not dry_run:
@@ -80,7 +82,15 @@ async def batch_process_jsonl_file(
                 try:
                     messages = data.get("messages", [])
                     metadata = data.get("metadata", {})
-                    result = await process_request(model_name, messages, metadata, temperature, max_tokens, dry_run)
+                    result = await process_request(
+                        model_name, 
+                        messages, 
+                        metadata, 
+                        temperature, 
+                        max_tokens, 
+                        dry_run,
+                        max_retries
+                    )
                 except Exception as e:
                     logger.error(f"Error processing request: {e}")
                     result = [
@@ -123,8 +133,11 @@ async def batch_process_jsonl_file(
     if dry_run:
         return output_buffer.getvalue()
 
-async def process_request(model_name, messages, metadata, temperature, max_tokens, dry_run):
-    """Process a single request and return the formatted result."""
+async def process_request(model_name, messages, metadata, temperature, max_tokens, dry_run, max_retries=3):
+    """
+    Process a single request and return the formatted result.
+    Will retry failed requests up to max_retries times.
+    """
     if dry_run:
         sentence_id = metadata["sentence_id"]
         logger.debug("Processing sentence: %s", sentence_id)
@@ -135,29 +148,36 @@ async def process_request(model_name, messages, metadata, temperature, max_token
             {"error": "Dry run"},
             metadata
         ]
-    try:
-        # Call the model asynchronously
-        response = await litellm.acompletion(
-            model=model_name,
-            messages=messages,
-            temperature=temperature,
-            max_tokens=max_tokens
-        )
-        
-        # Create the output format: [request, response, metadata]
-        return [
-            {"messages": messages},  # Original request
-            response.to_dict(),      # Model response
-            metadata                 # Original metadata
-        ]
-    except Exception as e:
-        print(f"Error in request: {e}")
-        # Return error information
-        return [
-            {"messages": messages},
-            {"error": str(e)},
-            metadata
-        ]
+
+    for attempt in range(max_retries + 1):
+        try:
+            # Call the model asynchronously
+            response = await litellm.acompletion(
+                model=model_name,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens
+            )
+            
+            # Create the output format: [request, response, metadata]
+            return [
+                {"messages": messages},  # Original request
+                response.to_dict(),      # Model response
+                metadata                 # Original metadata
+            ]
+        except Exception as e:
+            if attempt < max_retries:
+                wait_time = 2 ** attempt  # Exponential backoff
+                logger.warning(f"Attempt {attempt + 1} failed with error: {e}. Retrying in {wait_time} seconds...")
+                await asyncio.sleep(wait_time)
+            else:
+                logger.error(f"All {max_retries} retries failed. Final error: {e}")
+                # Return error information after all retries failed
+                return [
+                    {"messages": messages},
+                    {"error": str(e)},
+                    metadata
+                ]
 
 def is_successful_result(result):
     """
@@ -198,6 +218,8 @@ def main():
                         help="Maximum number of requests per minute (rate limit)")
     parser.add_argument("--dry-run", type=bool, default=False,
                         help="Run without sending requests or saving results")
+    parser.add_argument("--max-retries", type=int, default=3,
+                        help="Maximum number of retry attempts for failed requests")
     
     args = parser.parse_args()
     
@@ -220,7 +242,8 @@ def main():
         args.batch_size,
         args.requests_per_minute,
         previous_output_file,
-        args.dry_run
+        args.dry_run,
+        args.max_retries
     ))
     
     if args.dry_run:
