@@ -67,25 +67,31 @@ class DataFormatter:
         # Extract original and corrected sentences from metadata
         original = metadata.get('original', '')
         corrected = metadata.get('corrected', '')
-        
+
+        llm_corrected = ''        
         error_message = ''
+        raw_content = ''
         # Extract LLM's correction from the response
         try:
             # The response is in the format: {"choices": [{"message": {"content": '{"corrected": "..."}'}}]}
-            raw_content = response.get('choices', [{}])[0].get('message', {}).get('content', '{}')
+            try:
+                raw_content = response.get('choices', [{}])[0].get('message', {}).get('content', '{}')
+            except (KeyError, IndexError, AttributeError) as e:
+                logger.error(f"Error extracting raw content: {e}")
+                raw_content = ''
             content = self._extract_json_content(raw_content)
-            llm_response = json.loads(content)
-            llm_corrected = llm_response.get('corrected', '')
+            json_content = json.loads(content)
+            llm_corrected = json_content.get('corrected', '')
         except Exception as e:
             logger.error(f"Error extracting {model_name} correction: {e}")
-            llm_corrected = ''
             error_message = str(e)
         
         return {
             'original': original,
             'corrected': corrected,
             f'{model_name}_corrected': llm_corrected,
-            f'{model_name}_raw_response': raw_content,
+            f'{model_name}_response': response,
+            f'{model_name}_content': raw_content,
             f'{model_name}_error': error_message
         }
     

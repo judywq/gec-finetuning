@@ -2,12 +2,21 @@ from enum import Enum
 import os
 import pandas as pd
 import json
-
+from typing import List, Dict
+    
+    
+def read_jsonl(file_path: str) -> List[Dict]:
+    """Read JSONL file and return list of dictionaries."""
+    data = []
+    with open(file_path, 'r', encoding='utf-8') as f:
+        for line in f:
+            data.append(json.loads(line))
+    return data
 
 def save_to_jsonl(dataset, file_path):
     path = os.path.dirname(file_path)
     os.makedirs(path, exist_ok=True)
-    with open(file_path, 'w') as file:
+    with open(file_path, 'w', encoding='utf-8') as file:
         for record in dataset:
             json_line = json.dumps(record)
             file.write(json_line + '\n')
