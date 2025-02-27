@@ -3,6 +3,8 @@ from lib.data_formatter import DataFormatter
 import settings
 import os
 
+# skip_if_exists = True
+skip_if_exists = False
 
 file_pairs = [
     ('gpt-4o_baseline', settings.dataset_test_result_gpt_4o_baseline_filename, settings.gpt_4o_baseline_results_excel),
@@ -12,7 +14,7 @@ file_pairs = [
 
 def main():
     formatter = DataFormatter(settings)
-    formatter.run(file_pairs)
+    formatter.run(file_pairs, skip_if_exists)
 
 
 if __name__ == "__main__":
