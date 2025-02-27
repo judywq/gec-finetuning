@@ -26,12 +26,12 @@ async def batch_process_jsonl_file(
     dry_run=False,
     max_retries=3):
     """
-    Process a JSONL file with DeepSeek model using a sliding window of concurrent tasks.
+    Process a JSONL file with llm model using a sliding window of concurrent tasks.
     
     Args:
         input_file: Path to input JSONL file
         output_file: Path to output JSONL file
-        model_name: DeepSeek model name
+        model_name: provider/model-name (https://docs.litellm.ai/docs/providers)
         temperature: Temperature for generation
         max_tokens: Maximum tokens for generation
         batch_size: Maximum number of concurrent tasks
@@ -207,13 +207,13 @@ def is_successful_response(response):
         return False
 
 def main():
-    parser = argparse.ArgumentParser(description="Process a JSONL file with DeepSeek model")
-    parser.add_argument("--input", type=str, default="data/output/dataset/test_top5.jsonl",
+    parser = argparse.ArgumentParser(description="Process a JSONL file in parallel")
+    parser.add_argument("--input", type=str, default="data/output/dataset/test.jsonl",
                         help="Input JSONL file path")
-    parser.add_argument("--output", type=str, default="data/output/result/test_result_deepseek.jsonl",
+    parser.add_argument("--output", type=str, default="data/output/result/test_result_output.jsonl",
                         help="Output JSONL file path")
-    parser.add_argument("--model", type=str, default="deepseek-chat",
-                        help="DeepSeek model name")
+    parser.add_argument("--model", type=str, default="openai/gpt-4o-mini",
+                        help="provider/model-name (https://docs.litellm.ai/docs/providers)")
     parser.add_argument("--temperature", type=float, default=0,
                         help="Temperature for generation")
     parser.add_argument("--max_tokens", type=int, default=None,

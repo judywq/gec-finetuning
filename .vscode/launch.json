@@ -15,7 +15,7 @@
       "name": "DeepSeek Baseline (Top 1)",
       "type": "debugpy",
       "request": "launch",
-      "program": "C01_deepseek_baseline.py",
+      "program": "C01_inference_parrallel.py",
       "console": "integratedTerminal",
       "args": [
         "--input",
@@ -32,7 +32,7 @@
       "name": "DeepSeek Baseline",
       "type": "debugpy",
       "request": "launch",
-      "program": "C01_deepseek_baseline.py",
+      "program": "C01_inference_parrallel.py",
       "console": "integratedTerminal",
       "args": [
         "--input",
@@ -51,7 +51,7 @@
       "name": "OpenAI Finetuned",
       "type": "debugpy",
       "request": "launch",
-      "program": "C01_deepseek_baseline.py",
+      "program": "C01_inference_parrallel.py",
       "console": "integratedTerminal",
       "args": [
         "--input",
