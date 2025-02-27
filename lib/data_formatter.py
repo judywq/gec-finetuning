@@ -55,6 +55,7 @@ class DataFormatter:
         # Convert to DataFrame and save
         if results:
             df = pd.DataFrame(results)
+            df.sort_values(by='id', inplace=True)
             df.to_excel(output_file, index=False)
             logger.info(f"Results saved to {output_file}")
         else:
@@ -92,6 +93,7 @@ class DataFormatter:
             error_message = str(e)
         
         return {
+            'id': metadata.get('sentence_id', ''),
             'original': original,
             'corrected': corrected,
             f'{model_name}_corrected': llm_corrected,
