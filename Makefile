@@ -7,6 +7,15 @@ ds:
 		--requests_per_minute 200 \
 		--max_retries 1
 
+llama:
+	pipenv run python C01_inference_parrallel.py \
+		--input data/output/dataset/test.jsonl \
+		--output data/output/result/test_result_llama_3.1_8b.jsonl \
+		--model meta_llama/Llama-3.3-70B-Instruct \
+		--batch_size 20 \
+		--requests_per_minute 200 \
+		--max_retries 1
+
 openai-finetuned:
 	pipenv run python C01_inference_parrallel.py \
 		--input data/output/dataset/test.jsonl \
